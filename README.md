@@ -52,6 +52,13 @@ The demo uses a small basketball media ingestion service, a Redis-backed queue, 
 
 ## 🚀 Quick Start
 
+### Step 0: Clone the Repository
+
+```bash
+git clone https://github.com/23seriy/KEDA-in-action.git
+cd keda-in-action
+```
+
 ### Prerequisites
 
 - **macOS**

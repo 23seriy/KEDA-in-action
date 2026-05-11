@@ -98,6 +98,15 @@
    - `kubectl get scaledobject -n keda-demo`
    - both Redis and RabbitMQ scaler examples visible
  
+ ## Step 0: Clone the Repository
+ 
+ Before installing anything, clone the project locally:
+ 
+ ```bash
+ git clone https://github.com/23seriy/KEDA-in-action.git
+ cd keda-in-action
+ ```
+ 
  ## Step 1: Install the Tooling
  
  First, make the helper scripts executable and install the local dependencies.
