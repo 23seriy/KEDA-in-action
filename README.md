@@ -50,6 +50,7 @@ The demo uses a small basketball media ingestion service, a Redis-backed queue, 
 - **Docker Desktop** running
 - **Homebrew** installed
 - ~6 GB RAM available for Minikube
+- Minikube should run **Kubernetes 1.32+** for the current KEDA release used by this project
 
 ### Step 1: Install Tools
 
@@ -66,7 +67,24 @@ This installs or verifies `minikube`, `kubectl`, `helm`, and `docker`.
 ./scripts/02-start-cluster.sh
 ```
 
-This creates a Minikube profile called `keda-demo`, installs KEDA with Helm, and waits for the operator to be ready.
+This creates a Minikube profile called `keda-demo` on **Kubernetes `v1.32.0`**, installs KEDA with Helm, and waits for the operator to be ready.
+
+If you already created `keda-demo` earlier on an older Kubernetes version and see a KEDA compatibility warning, recreate the cluster:
+
+```bash
+minikube delete -p keda-demo
+./scripts/02-start-cluster.sh
+```
+
+If the script times out waiting for `keda-operator-metrics-apiserver`, rerun it after checking the KEDA namespace status:
+
+```bash
+kubectl get pods -n keda
+kubectl describe deployment keda-operator-metrics-apiserver -n keda
+kubectl get events -n keda --sort-by=.metadata.creationTimestamp | tail -n 30
+```
+
+The setup script now prints these diagnostics automatically when that deployment does not become ready in time.
 
 ### Step 3: Build & Deploy the Demo
 
