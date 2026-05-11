@@ -1,0 +1,18 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-fast-polling
+  namespace: keda-demo
+spec:
+  scaleTargetRef:
+    name: worker
+  minReplicaCount: 0
+  maxReplicaCount: 12
+  pollingInterval: 5
+  cooldownPeriod: 20
+  triggers:
+    - type: redis
+      metadata:
+        address: redis.keda-demo.svc.cluster.local:6379
+        listName: highlight-jobs
+        listLength: "3"
