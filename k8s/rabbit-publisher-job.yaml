@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rabbit-publisher
+  namespace: keda-demo
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: publisher
+          image: keda-demo/rabbit-publisher:latest
+          imagePullPolicy: Never
+          args: ["30"]
+          env:
+            - name: RABBITMQ_HOST
+              value: rabbitmq
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: guest
+            - name: RABBITMQ_PASSWORD
+              value: guest
+            - name: QUEUE_NAME
+              value: recap-jobs
+  backoffLimit: 1

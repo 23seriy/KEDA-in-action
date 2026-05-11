@@ -2,7 +2,7 @@
 
 A hands-on project for learning **KEDA (Kubernetes Event-Driven Autoscaling)** on your laptop with Minikube. Instead of scaling on CPU alone, this project scales worker pods based on **real queue demand**.
 
-The demo uses a small basketball media ingestion service, a Redis-backed queue, and a worker deployment that KEDA scales from **zero to many replicas** depending on backlog. Think of it like an NBA content pipeline reacting to game-night spikes: highlight clipping requests, box score updates, and social-ready stat cards.
+The demo uses a small basketball media ingestion service, a Redis-backed queue, a RabbitMQ recap pipeline, and worker deployments that KEDA scales from **zero to many replicas** depending on backlog. Think of it like an NBA content platform reacting to game-night spikes: highlight clipping requests, box score updates, recap batches, and social-ready stat cards.
 
 ![KEDA](https://img.shields.io/badge/KEDA-2.16-7B61FF?logo=kubernetes&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-1.30-326CE5?logo=kubernetes&logoColor=white)
@@ -27,6 +27,12 @@ The demo uses a small basketball media ingestion service, a Redis-backed queue, 
                  │                       ▼                  │
                  │        Highlight Worker Deployment       │
                  │        scales 0 → N based on backlog    │
+                 │                                          │
+                 │               KEDA watches queue length  │
+                 │                       │                  │
+                 │                       ▼                  │
+                 │        RabbitMQ Worker Deployment       │
+                 │        scales 0 → N based on backlog    │
                  └──────────────────────────────────────────┘
 ```
 
@@ -36,10 +42,12 @@ The demo uses a small basketball media ingestion service, a Redis-backed queue, 
 |---|---|---|
 | **Scale to Zero** | Runs no workers when there is no work | No live games, empty queue |
 | **Redis Scaler** | Scales from queue depth | Highlight backlog after tip-off |
+| **RabbitMQ Scaler** | Scales from AMQP queue depth | Postgame recap burst after the final buzzer |
 | **Polling Interval** | Controls how often KEDA checks the trigger | Faster vs calmer game-night reactions |
 | **Cooldown Period** | Controls scale-down delay | Prevent flapping after scoring bursts |
 | **Min/Max Replicas** | Bounds autoscaling | Cost vs responsiveness for fan traffic |
 | **Cron Scaling** | Pre-warms capacity on schedule | Pregame warm-up before evening slate |
+| **TriggerAuthentication** | Securely injects scaler connection details | RabbitMQ recap queue authentication |
 | **Operational Visibility** | Observe queue depth and pod count | kubectl + status endpoint |
 
 ## 🚀 Quick Start
@@ -92,7 +100,7 @@ The setup script now prints these diagnostics automatically when that deployment
 ./scripts/03-deploy-app.sh
 ```
 
-This builds the producer and worker images directly inside Minikube's Docker daemon, deploys Redis and the app components, and applies the default KEDA scaler.
+This builds the producer, shared worker, and RabbitMQ publisher images directly inside Minikube's Docker daemon, deploys Redis, RabbitMQ, and the app components, and applies the default Redis-based KEDA scaler.
 
 ### Step 4: Access the Producer API
 
@@ -155,12 +163,24 @@ Stop sending jobs and watch the workers disappear after the cooldown period:
 kubectl get pods -n keda-demo -l app=worker -w
 ```
 
+### 6. RabbitMQ Queue Scaling + TriggerAuthentication
+
+```bash
+kubectl apply -f keda/scaledobject-rabbitmq.yaml
+kubectl apply -f k8s/rabbit-publisher-job.yaml
+```
+
+This independent path uses a dedicated `rabbit-worker` deployment, a RabbitMQ queue named `recap-jobs`, and a `TriggerAuthentication` backed by a Kubernetes Secret. It demonstrates how KEDA commonly integrates with authenticated external systems in production.
+
 ## 🔍 How the Demo Works
 
 - **Producer API** receives job submissions and pushes messages to Redis.
 - **Worker pods** pop jobs from Redis and simulate processing with variable durations.
-- **KEDA** checks Redis list length and scales the worker deployment automatically.
-- **Redis** is only the event source here; the key learning is that scaling follows business demand, not CPU averages.
+- **RabbitMQ publisher job** sends recap batches into an AMQP queue for a second demo track.
+- **RabbitMQ worker pods** consume recap jobs when the RabbitMQ scaler decides more capacity is needed.
+- **KEDA** checks Redis list length or RabbitMQ queue depth and scales the matching deployment automatically.
+- **TriggerAuthentication** supplies RabbitMQ connection details through a Secret, mirroring a more production-like scaler setup.
+- **Redis and RabbitMQ** are only event sources here; the key learning is that scaling follows business demand, not CPU averages.
 
 ## 📁 Project Structure
 
@@ -168,6 +188,10 @@ kubectl get pods -n keda-demo -l app=worker -w
 keda-in-action/
 ├── apps/
 │   ├── producer/
+│   │   ├── app.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── rabbit-publisher/
 │   │   ├── app.py
 │   │   ├── Dockerfile
 │   │   └── requirements.txt
@@ -180,14 +204,18 @@ keda-in-action/
 ├── k8s/
 │   ├── namespace.yaml
 │   ├── redis.yaml
+│   ├── rabbitmq.yaml
+│   ├── rabbit-publisher-job.yaml
 │   ├── producer.yaml
 │   ├── producer-service.yaml
-│   └── worker-deployment.yaml
+│   ├── worker-deployment.yaml
+│   └── rabbit-worker-deployment.yaml
 ├── keda/
 │   ├── scaledobject-queue-5.yaml
 │   ├── scaledobject-queue-20.yaml
 │   ├── scaledobject-fast-polling.yaml
-│   └── scaledobject-cron-warm.yaml
+│   ├── scaledobject-cron-warm.yaml
+│   └── scaledobject-rabbitmq.yaml
 └── scripts/
     ├── 01-install-prerequisites.sh
     ├── 02-start-cluster.sh
@@ -210,13 +238,15 @@ This deletes the namespace, uninstalls KEDA from the cluster, and removes the Mi
 2. **Scale-to-zero reduces idle cost** — no workers needed when the queue is empty.
 3. **Thresholds shape behavior** — low thresholds improve responsiveness, higher thresholds reduce churn.
 4. **Cooldown and polling matter** — bad settings can cause slow reactions or noisy scaling.
-5. **KEDA complements Kubernetes** — it plugs into standard Deployments and HPAs instead of replacing them.
+5. **TriggerAuthentication matters in real systems** — external scalers often need credentials managed through Kubernetes resources.
+6. **KEDA complements Kubernetes** — it plugs into standard Deployments and HPAs instead of replacing them.
 
 ## 📚 Resources
 
 - [KEDA Documentation](https://keda.sh/docs/latest/)
 - [KEDA Scalers](https://keda.sh/docs/latest/scalers/)
 - [Redis Lists](https://redis.io/docs/latest/develop/data-types/lists/)
+- [RabbitMQ Scaler](https://keda.sh/docs/latest/scalers/rabbitmq-queue/)
 - [Minikube Documentation](https://minikube.sigs.k8s.io/docs/)
 
 ## 📝 License

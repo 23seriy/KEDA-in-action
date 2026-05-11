@@ -31,6 +31,11 @@ show_status() {
     curl -s "$PRODUCER_URL/status" | python3 -m json.tool 2>/dev/null || true
 }
 
+publish_rabbit_jobs() {
+    kubectl delete job rabbit-publisher -n keda-demo 2>/dev/null || true
+    kubectl apply -f "$PROJECT_DIR/k8s/rabbit-publisher-job.yaml"
+}
+
 echo "============================================"
 echo "  KEDA in Action — Demo Scenarios"
 echo "============================================"
@@ -81,6 +86,19 @@ header "Scenario 5: Scale to Zero"
 info "Stop submitting jobs and watch workers scale back down after cooldown."
 info "Useful command: kubectl get deploy worker -n keda-demo -w"
 show_status
+wait_for_user
+
+header "Scenario 6: RabbitMQ Queue Scaling + TriggerAuthentication"
+info "This scenario uses a separate rabbit-worker deployment so it does not conflict with the Redis-based worker."
+info "Watch RabbitMQ consumers in another terminal: kubectl get pods -n keda-demo -l app=rabbit-worker -w"
+kubectl apply -f "$PROJECT_DIR/keda/scaledobject-rabbitmq.yaml"
+info "Publishing 30 recap jobs to RabbitMQ..."
+publish_rabbit_jobs
+echo ""
+info "Useful commands:"
+echo "  kubectl get scaledobject rabbit-worker-queue -n keda-demo"
+echo "  kubectl get hpa -n keda-demo -w"
+echo "  kubectl logs -n keda-demo deployment/rabbit-worker --tail=20"
 
 echo ""
 echo "============================================"

@@ -24,11 +24,17 @@ docker build -t keda-demo/producer:latest "$PROJECT_DIR/apps/producer"
 info "Building worker image..."
 docker build -t keda-demo/worker:latest "$PROJECT_DIR/apps/worker"
 
+info "Building RabbitMQ publisher image..."
+docker build -t keda-demo/rabbit-publisher:latest "$PROJECT_DIR/apps/rabbit-publisher"
+
 info "Creating namespace..."
 kubectl apply -f "$PROJECT_DIR/k8s/namespace.yaml"
 
 info "Deploying Redis..."
 kubectl apply -f "$PROJECT_DIR/k8s/redis.yaml"
+
+info "Deploying RabbitMQ..."
+kubectl apply -f "$PROJECT_DIR/k8s/rabbitmq.yaml"
 
 info "Deploying producer..."
 kubectl apply -f "$PROJECT_DIR/k8s/producer.yaml"
@@ -37,11 +43,16 @@ kubectl apply -f "$PROJECT_DIR/k8s/producer-service.yaml"
 info "Deploying worker deployment..."
 kubectl apply -f "$PROJECT_DIR/k8s/worker-deployment.yaml"
 
+info "Deploying RabbitMQ worker deployment..."
+kubectl apply -f "$PROJECT_DIR/k8s/rabbit-worker-deployment.yaml"
+
 info "Applying default KEDA scaler..."
+kubectl delete scaledobject --all -n keda-demo 2>/dev/null || true
 kubectl apply -f "$PROJECT_DIR/keda/scaledobject-queue-5.yaml"
 
-info "Waiting for Redis and producer to be ready..."
+info "Waiting for Redis, RabbitMQ, and producer to be ready..."
 kubectl wait --for=condition=available deployment/redis -n keda-demo --timeout=180s
+kubectl wait --for=condition=available deployment/rabbitmq -n keda-demo --timeout=180s
 kubectl wait --for=condition=available deployment/producer -n keda-demo --timeout=180s
 
 echo ""

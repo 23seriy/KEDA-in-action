@@ -1,14 +1,20 @@
-# KEDA in Action: Event-Driven Autoscaling on Your Laptop
+# KEDA in Action: Building Event-Driven Autoscaling Demos with Kubernetes, Redis, RabbitMQ, and an NBA Theme
  
- Most Kubernetes autoscaling demos start with CPU or memory. That is understandable because those signals are built into the platform and easy to chart. But from an operator’s point of view, those metrics are often only **proxies** for real demand.
+ > A practical, DevOps-focused walkthrough of KEDA using basketball-content pipelines you can run on your laptop.
+ 
+ **Estimated read time:** 10-12 minutes
+ 
+ Most Kubernetes autoscaling demos begin with CPU or memory. That makes sense because those signals are built into the platform, easy to graph, and familiar to most engineers. But from an operator's point of view, those metrics are often only **proxies** for real demand.
  
  If your system processes work from a queue, the question is not “Are my pods hot enough to scale?” The real question is “**Is work piling up faster than I can drain it?**”
  
  That is where KEDA becomes genuinely useful.
  
- In this article, I want to show KEDA through a story that is both practical and fun: an **NBA fan platform** that generates highlight packages, stat cards, and game recap assets when live-game moments create sudden spikes in demand. Think of a tight Lakers-Celtics game, a fourth-quarter run, and a flood of requests for fresh basketball content. The API is lightweight and only enqueues jobs. The expensive work happens in background workers. When nothing is happening, we want **zero workers**. When game-night traffic hits, we want Kubernetes to scale up quickly and safely.
+ In this article, I want to show KEDA through a scenario that is both practical and memorable: an **NBA fan platform** that generates highlight packages, stat cards, and game recap assets when live-game moments create sudden spikes in demand. Think of a tight Lakers-Celtics game, a fourth-quarter run, and a flood of requests for fresh basketball content. The API is lightweight and only enqueues jobs. The expensive work happens later, inside worker pods. When nothing is happening, we want **zero workers**. When game-night traffic hits, we want Kubernetes to bring workers off the bench quickly and safely.
  
  That is a much more honest scaling model than “CPU above 70% means maybe scale out.”
+ 
+ By the end of this walkthrough, you will have a complete local demo showing how KEDA scales from queue depth, how to switch between scaling policies, how `TriggerAuthentication` fits into a more realistic setup, and why event-driven autoscaling often maps better to real systems than CPU-only rules.
  
  ## Why DevOps Engineers Should Care
  
@@ -25,25 +31,31 @@
  
  KEDA lets you scale on those first-class operational signals.
  
- ## Demo Architecture
+ That is why KEDA tends to click immediately with platform engineers. It does not ask you to invent synthetic thresholds first. It starts with a simpler question: *what does demand actually look like for this system?*
  
- This project has only a few moving parts, which is exactly what makes it good for teaching.
+ ## The Demo Architecture
+ 
+ This project has only a few moving parts, which is exactly what makes it useful for teaching and easy to reason about during a live demo.
  
  - **Producer API**
    - accepts basketball-content jobs
    - pushes them into Redis
- 
+
  - **Redis queue**
-   - stores the pending workload
-   - acts as the event source for scaling
- 
- - **Worker deployment**
-   - pulls jobs from Redis
-   - simulates content processing
- 
- - **KEDA ScaledObject**
-   - watches queue depth
-   - scales the worker deployment up and down
+   - stores the pending highlight workload
+   - acts as the first event source for scaling
+
+ - **RabbitMQ queue**
+   - stores recap-batch workload
+   - demonstrates a second, authenticated scaler path
+
+ - **Worker deployments**
+   - `worker` consumes Redis highlight jobs
+   - `rabbit-worker` consumes RabbitMQ recap jobs
+
+ - **KEDA ScaledObjects**
+   - watch queue depth
+   - scale the matching deployments up and down
  
  ### Architecture Illustration
  
@@ -51,17 +63,21 @@
                        ┌────────────────────────────────────────────┐
                        │            Minikube / Kubernetes           │
                        │                                            │
- NBA fan traffic ───►  │  Producer API ───────► Redis queue         │
+                      │  Producer API ───────► Redis queue         │
  localhost:9090        │      │                highlight-jobs       │
-                       │      │                                     │
-                       │      └──── submit highlight/stat jobs      │
-                       │                                            │
-                       │            KEDA watches queue length       │
-                       │                     │                      │
-                       │                     ▼                      │
-                       │          Worker Deployment (0 → N)         │
-                       │                                            │
-                       └────────────────────────────────────────────┘
+                      │      │                                     │
+                      │      └──── submit highlight/stat jobs      │
+                      │                                            │
+                      │  Rabbit publisher Job ─► RabbitMQ queue    │
+                      │                        recap-jobs           │
+                      │                                            │
+                      │   KEDA watches Redis and RabbitMQ depth    │
+                      │                 │               │           │
+                      │                 ▼               ▼           │
+                      │      Worker Deployment   Rabbit Worker     │
+                      │           (0 → N)            (0 → N)       │
+                      │                                            │
+                      └────────────────────────────────────────────┘
  ```
  
  ### Suggested Illustration for Medium
@@ -80,7 +96,7 @@
  
  - **Screenshot 4**
    - `kubectl get scaledobject -n keda-demo`
-   - queue-driven scaler visible
+   - both Redis and RabbitMQ scaler examples visible
  
  ## Step 1: Install the Tooling
  
@@ -126,6 +142,8 @@
  
  You should see the KEDA operator and metrics apiserver running.
  
+ This is an important confidence check. Before talking about autoscaling behavior, make sure the control plane pieces that enable it are healthy.
+ 
  ### Suggested illustration
  
  ```text
@@ -137,7 +155,7 @@
  
  ## Step 3: Deploy the Basketball Demo
  
- Now deploy the Redis queue, producer API, worker deployment, and default KEDA scaler.
+ Now deploy the Redis queue, RabbitMQ broker, producer API, worker deployments, and the default Redis-based KEDA scaler.
  
  ```bash
  ./scripts/03-deploy-app.sh
@@ -147,7 +165,8 @@
  
  - builds images directly inside the Minikube Docker daemon
  - deploys the application into the `keda-demo` namespace
- - applies the default `ScaledObject`
+ - installs both Redis and RabbitMQ demo paths
+ - applies the default Redis `ScaledObject`
  
  Validate what was created:
  
@@ -159,13 +178,15 @@
  At this point, you should have:
  
  - a Redis deployment and service
+ - a RabbitMQ deployment and service
  - a producer deployment and service
- - a worker deployment
+ - a Redis worker deployment
+ - a RabbitMQ worker deployment
  - a KEDA `ScaledObject`
  
  ### Operational note
  
- This is the moment where I usually tell readers to pause and inspect the state before generating load. A big part of DevOps maturity is learning to establish a clean baseline before testing dynamic behavior.
+ This is the moment where I usually tell readers to pause and inspect the state before generating load. A big part of DevOps maturity is learning to establish a clean baseline before testing dynamic behavior. If you skip the baseline, every later result becomes harder to interpret.
  
  ## Step 4: Open the Producer API
  
@@ -181,6 +202,8 @@
  - `http://localhost:9090/status`
  
  The UI gives you a simple way to submit basketball-content jobs into the queue.
+ 
+ From a storytelling perspective, this matters. Readers can now connect what they do in the browser to what Kubernetes does in the cluster.
  
  ### Suggested illustration
  
@@ -204,6 +227,8 @@
  
  This is one of the best ways to explain KEDA to skeptical operators. The absence of idle workers is not fragility. It is efficiency.
  
+ In many organizations, this is the mental shift that matters most. We stop treating a zero-replica state as suspicious and start treating it as a valid, cost-aware steady state.
+ 
  ## Step 6: Run the Default Demo Scenario
  
  Submit a burst of jobs from the UI, or use the guided scenario script.
@@ -214,9 +239,12 @@
  
  The first scenario applies the default Redis scaler threshold and sends a burst of jobs into the queue.
  
+ Before applying a different scaling profile manually, remove any existing `ScaledObject` that already manages the `worker` deployment. KEDA allows only one `ScaledObject` per workload target.
+
  If you prefer to narrate the steps manually in the article, do this:
- 
+
  ```bash
+ kubectl delete scaledobject --all -n keda-demo
  kubectl apply -f keda/scaledobject-queue-5.yaml
  curl -s -X POST http://localhost:9090/enqueue \
    -H "Content-Type: application/json" \
@@ -231,17 +259,20 @@
  
  You should see workers come online as the highlight backlog grows.
  
+ This is the core demo moment. A user action becomes queue depth. Queue depth becomes replica count. Replica count becomes queue drain. It is a clean chain of cause and effect, which is exactly what makes KEDA such a strong teaching tool.
+ 
  ### What to explain to DevOps readers
  
  Emphasize that KEDA is not reacting to CPU saturation here. It is reacting to queued work. That difference matters in real systems because backlog is often visible **before** resource pressure becomes obvious.
  
  ## Step 7: Explore the Scaling Profiles
  
- This is where the article can move from demo to engineering judgment.
+ This is where the article moves from simple demo mechanics to engineering judgment.
  
  ### Scenario A: Default threshold of 5
- 
+
  ```bash
+ kubectl delete scaledobject --all -n keda-demo
  kubectl apply -f keda/scaledobject-queue-5.yaml
  ```
  
@@ -251,9 +282,12 @@
  - jobs are moderately expensive
  - you want visibly responsive scaling
  
- ### Scenario B: Conservative threshold of 20
+ This is the profile I would use to introduce KEDA in a live session because the response is fast enough to be obvious without being chaotic.
  
+ ### Scenario B: Conservative threshold of 20
+
  ```bash
+ kubectl delete scaledobject --all -n keda-demo
  kubectl apply -f keda/scaledobject-queue-20.yaml
  ```
  
@@ -265,9 +299,12 @@
  - jobs are short-lived
  - queue delay is acceptable
  
- ### Scenario C: Fast polling and shorter cooldown
+ This is a useful reminder that autoscaling is never just technical. It is a policy decision about what level of waiting your platform considers acceptable.
  
+ ### Scenario C: Fast polling and shorter cooldown
+
  ```bash
+ kubectl delete scaledobject --all -n keda-demo
  kubectl apply -f keda/scaledobject-fast-polling.yaml
  ```
  
@@ -279,9 +316,12 @@
  - faster scale down
  - higher chance of noisy scaling if the workload is bursty and irregular
  
- ### Scenario D: Cron pre-warm plus queue trigger
+ In production, this is where you start balancing responsiveness against churn. Faster is not always better if it creates unnecessary scaling noise.
  
+ ### Scenario D: Cron pre-warm plus queue trigger
+
  ```bash
+ kubectl delete scaledobject --all -n keda-demo
  kubectl apply -f keda/scaledobject-cron-warm.yaml
  ```
  
@@ -290,6 +330,38 @@
  If you already know the NBA evening slate starts at predictable times, pre-warm a baseline number of workers, then let queue depth scale further when demand exceeds expectations.
  
  That combination of **predictable scaling** and **event-driven scaling** is far closer to real platform operations than a one-dimensional autoscaling rule.
+ 
+ This is one of my favorite KEDA patterns because it reflects how real systems behave: some peaks are scheduled, others are emergent, and a good platform strategy accounts for both.
+
+ ### Scenario E: RabbitMQ queue scaling with TriggerAuthentication
+
+ ```bash
+ kubectl apply -f keda/scaledobject-rabbitmq.yaml
+ kubectl apply -f k8s/rabbit-publisher-job.yaml
+ ```
+
+ This is the part of the demo that moves closer to a production-style integration. Instead of using an inline connection string directly in the scaler metadata, the RabbitMQ example stores the host connection string in a Kubernetes `Secret` and references it through a `TriggerAuthentication`.
+
+ That matters because most real systems are not scaling against an unauthenticated local service. They are scaling against something that requires credentials, network boundaries, or both.
+
+ Watch the RabbitMQ worker pods separately:
+
+ ```bash
+ kubectl get pods -n keda-demo -l app=rabbit-worker -w
+ kubectl get hpa -n keda-demo -w
+ ```
+
+ The flow is intentionally different from the Redis UI demo:
+
+ - a Kubernetes Job publishes recap messages into RabbitMQ
+ - KEDA reads RabbitMQ queue depth through the RabbitMQ scaler
+ - `rabbit-worker` pods scale from zero based on backlog
+ - once the queue drains, the deployment returns to zero after cooldown
+
+ This example adds two valuable ideas to the project:
+
+ - **another scaler type**, so readers do not assume KEDA is only for Redis-style queues
+ - **TriggerAuthentication**, so the article shows how KEDA commonly accesses authenticated event sources
  
  ## Step 8: Verify Scale to Zero
  
@@ -317,6 +389,8 @@
  
  That three-stage visual sequence sells the concept better than any abstract definition.
  
+ If you are turning this into a Medium post, this is the section where a before/during/after image sequence will do more work than three extra paragraphs.
+ 
  ## What This Demo Teaches Beyond the Happy Path
  
  Small demos are useful when they trigger the right production questions.
@@ -328,45 +402,25 @@
  - What backlog is acceptable for my users?
  - How long should I wait before scaling back down?
  - Should I pre-warm capacity for known peaks?
+ - How should I handle credentials for external event sources?
  - What is the cost of being wrong in either direction?
  
  Those are the questions that separate a demo from an operating model.
  
- ## Writing Notes for Medium Publication
- 
- If you publish this on Medium, I recommend structuring the final article with these visual beats:
- 
- - **Hero section**
-   - title
-   - one-sentence promise
-   - architecture illustration
- 
- - **Setup section**
-   - one screenshot of tooling
-   - one screenshot of KEDA installed
- 
- - **Live demo section**
-   - producer UI screenshot
-   - worker scaling terminal screenshot
-   - `ScaledObject` manifest snippet
- 
- - **Operational insights section**
-   - explain thresholds, cooldown, and polling interval
-   - compare queue-driven vs CPU-driven thinking
- 
- - **Final takeaway**
-   - one concise paragraph on why KEDA matters in real systems
- 
+ A good technical article should leave readers with more than instructions. It should leave them with a sharper way to think about system behavior. That is what this demo tries to do.
+
  ## Final Takeaway
  
  KEDA is compelling because it makes autoscaling feel closer to application intent.
  
  Instead of asking Kubernetes to infer demand from resource pressure, you can teach it to react to signals your platform already understands: queue backlog, scheduled spikes, cloud messages, Kafka lag, or database activity.
  
- For this demo, the signal is basketball-content backlog.
+ For this demo, the signals are basketball-content backlog in Redis and recap backlog in RabbitMQ.
  
  In a real platform, that backlog could represent orders, messages, videos, ETL tasks, alerts, or event streams.
  
  The principle stays the same:
  
  **scale based on the thing your users are actually waiting for.**
+ 
+ If you want to publish this on Medium, the article is now strong enough to support screenshots from the live demo, a clean hero image, and a short call to action linking back to the repository. Those final touches will make it feel like a polished technical story rather than an internal draft.

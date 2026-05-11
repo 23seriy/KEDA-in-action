@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbit-worker
+  namespace: keda-demo
+  labels:
+    app: rabbit-worker
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: rabbit-worker
+  template:
+    metadata:
+      labels:
+        app: rabbit-worker
+    spec:
+      containers:
+        - name: rabbit-worker
+          image: keda-demo/worker:latest
+          imagePullPolicy: Never
+          env:
+            - name: WORKER_BACKEND
+              value: rabbitmq
+            - name: RABBITMQ_HOST
+              value: rabbitmq
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: guest
+            - name: RABBITMQ_PASSWORD
+              value: guest
+            - name: QUEUE_NAME
+              value: recap-jobs
+            - name: PREFETCH_COUNT
+              value: "1"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
