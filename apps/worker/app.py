@@ -3,6 +3,7 @@ import os
 import random
 import time
 from datetime import datetime
+from urllib.parse import urlparse
 
 import pika
 import redis
@@ -10,14 +11,27 @@ import redis
 WORKER_BACKEND = os.environ.get("WORKER_BACKEND", "redis").lower()
 REDIS_HOST = os.environ.get("REDIS_HOST", "redis")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
-RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
-RABBITMQ_PORT = int(os.environ.get("RABBITMQ_PORT", "5672"))
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "guest")
 RABBITMQ_PASSWORD = os.environ.get("RABBITMQ_PASSWORD", "guest")
 QUEUE_NAME = os.environ.get("QUEUE_NAME", "highlight-jobs")
 WORKER_NAME = os.environ.get("HOSTNAME", "worker-unknown")
 IDLE_SLEEP = float(os.environ.get("IDLE_SLEEP", "2"))
 PREFETCH_COUNT = int(os.environ.get("PREFETCH_COUNT", "1"))
+
+
+def resolve_rabbitmq_endpoint() -> tuple[str, int]:
+    host_value = os.environ.get("RABBITMQ_HOST", "rabbitmq")
+    port_value = os.environ.get("RABBITMQ_PORT", "5672")
+
+    if isinstance(port_value, str) and "://" in port_value:
+        parsed = urlparse(port_value)
+        if parsed.hostname and parsed.port:
+            return parsed.hostname, parsed.port
+
+    return host_value, int(port_value)
+
+
+RABBITMQ_HOST, RABBITMQ_PORT = resolve_rabbitmq_endpoint()
 
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 

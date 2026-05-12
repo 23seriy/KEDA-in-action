@@ -1,14 +1,28 @@
 import os
 import sys
 import time
+from urllib.parse import urlparse
 
 import pika
 
-RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
-RABBITMQ_PORT = int(os.environ.get("RABBITMQ_PORT", "5672"))
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "guest")
 RABBITMQ_PASSWORD = os.environ.get("RABBITMQ_PASSWORD", "guest")
 QUEUE_NAME = os.environ.get("QUEUE_NAME", "recap-jobs")
+
+
+def resolve_rabbitmq_endpoint() -> tuple[str, int]:
+    host_value = os.environ.get("RABBITMQ_HOST", "rabbitmq")
+    port_value = os.environ.get("RABBITMQ_PORT", "5672")
+
+    if isinstance(port_value, str) and "://" in port_value:
+        parsed = urlparse(port_value)
+        if parsed.hostname and parsed.port:
+            return parsed.hostname, parsed.port
+
+    return host_value, int(port_value)
+
+
+RABBITMQ_HOST, RABBITMQ_PORT = resolve_rabbitmq_endpoint()
 
 
 def connect() -> pika.BlockingConnection:
