@@ -10,13 +10,24 @@ import redis
 
 WORKER_BACKEND = os.environ.get("WORKER_BACKEND", "redis").lower()
 REDIS_HOST = os.environ.get("REDIS_HOST", "redis")
-REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "guest")
 RABBITMQ_PASSWORD = os.environ.get("RABBITMQ_PASSWORD", "guest")
 QUEUE_NAME = os.environ.get("QUEUE_NAME", "highlight-jobs")
 WORKER_NAME = os.environ.get("HOSTNAME", "worker-unknown")
 IDLE_SLEEP = float(os.environ.get("IDLE_SLEEP", "2"))
 PREFETCH_COUNT = int(os.environ.get("PREFETCH_COUNT", "1"))
+
+
+def resolve_redis_endpoint() -> tuple[str, int]:
+    host_value = os.environ.get("REDIS_HOST", "redis")
+    port_value = os.environ.get("REDIS_PORT", "6379")
+
+    if isinstance(port_value, str) and "://" in port_value:
+        parsed = urlparse(port_value)
+        if parsed.hostname and parsed.port:
+            return parsed.hostname, parsed.port
+
+    return host_value, int(port_value)
 
 
 def resolve_rabbitmq_endpoint() -> tuple[str, int]:
@@ -31,9 +42,10 @@ def resolve_rabbitmq_endpoint() -> tuple[str, int]:
     return host_value, int(port_value)
 
 
+REDIS_HOST, REDIS_PORT = resolve_redis_endpoint()
 RABBITMQ_HOST, RABBITMQ_PORT = resolve_rabbitmq_endpoint()
 
-redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+redis_client: redis.Redis | None = None
 
 
 def log(message: str) -> None:
@@ -60,6 +72,10 @@ def process_rabbit_message(body: bytes) -> None:
 
 
 def run_redis_worker() -> None:
+    global redis_client
+    if redis_client is None:
+        redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+
     log(f"Worker started. Listening to basketball queue '{QUEUE_NAME}' on {REDIS_HOST}:{REDIS_PORT}")
     while True:
         item = redis_client.brpop(QUEUE_NAME, timeout=10)
