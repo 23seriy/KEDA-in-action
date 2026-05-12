@@ -22,7 +22,7 @@ print_keda_diagnostics() {
 }
 
 PROFILE="keda-demo"
-TARGET_K8S_VERSION="v1.32.0"
+TARGET_K8S_VERSION="v1.35.1"
 
 echo "============================================"
 echo "  KEDA in Action — Cluster Setup"

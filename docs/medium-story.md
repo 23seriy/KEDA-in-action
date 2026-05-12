@@ -138,7 +138,7 @@
  This script:
  
  - creates a Minikube profile named `keda-demo`
- - starts Kubernetes `v1.32.0`
+ - starts Kubernetes `v1.35.1`
  - installs KEDA using Helm
  - waits for the KEDA operator to become ready
  

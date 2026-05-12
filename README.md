@@ -65,7 +65,7 @@ cd keda-in-action
 - **Docker Desktop** running
 - **Homebrew** installed
 - ~6 GB RAM available for Minikube
-- Minikube should run **Kubernetes 1.32+** for the current KEDA release used by this project
+- Minikube should run **Kubernetes 1.35+** for the current KEDA release used by this project
 
 ### Step 1: Install Tools
 
@@ -82,7 +82,7 @@ This installs or verifies `minikube`, `kubectl`, `helm`, and `docker`.
 ./scripts/02-start-cluster.sh
 ```
 
-This creates a Minikube profile called `keda-demo` on **Kubernetes `v1.32.0`**, installs KEDA with Helm, and waits for the operator to be ready.
+This creates a Minikube profile called `keda-demo` on **Kubernetes `v1.35.1`**, installs KEDA with Helm, and waits for the operator to be ready.
 
 If you already created `keda-demo` earlier on an older Kubernetes version and see a KEDA compatibility warning, recreate the cluster:
 
