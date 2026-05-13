@@ -5,7 +5,7 @@ A hands-on project for learning **KEDA (Kubernetes Event-Driven Autoscaling)** o
 The demo uses a small basketball media ingestion service, a Redis-backed queue, a RabbitMQ recap pipeline, and worker deployments that KEDA scales from **zero to many replicas** depending on backlog. Think of it like an NBA content platform reacting to game-night spikes: highlight clipping requests, box score updates, recap batches, and social-ready stat cards.
 
 ![KEDA](https://img.shields.io/badge/KEDA-2.16-7B61FF?logo=kubernetes&logoColor=white)
-![Kubernetes](https://img.shields.io/badge/Kubernetes-1.30-326CE5?logo=kubernetes&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-1.35.1-326CE5?logo=kubernetes&logoColor=white)
 ![Minikube](https://img.shields.io/badge/Minikube-local-F7B93E?logo=kubernetes&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 
@@ -13,7 +13,6 @@ The demo uses a small basketball media ingestion service, a Redis-backed queue, 
 
 ## 🏗️ Architecture
 
-```text
                  ┌──────────────────────────────────────────┐
                  │              Minikube Cluster            │
                  │                                          │
@@ -34,7 +33,6 @@ The demo uses a small basketball media ingestion service, a Redis-backed queue, 
                  │        RabbitMQ Worker Deployment       │
                  │        scales 0 → N based on backlog    │
                  └──────────────────────────────────────────┘
-```
 
 ## 📋 What You'll Learn
 
@@ -108,6 +106,8 @@ The setup script now prints these diagnostics automatically when that deployment
 ```
 
 This builds the producer, shared worker, and RabbitMQ publisher images directly inside Minikube's Docker daemon, deploys Redis, RabbitMQ, and the app components, and applies the default Redis-based KEDA scaler.
+
+If you change application code and rerun the deploy script, it now restarts the affected deployments so the rebuilt local images are picked up immediately.
 
 ### Step 4: Access the Producer API
 
@@ -206,8 +206,6 @@ keda-in-action/
 │       ├── app.py
 │       ├── Dockerfile
 │       └── requirements.txt
-├── docs/
-│   └── medium-story.md
 ├── k8s/
 │   ├── namespace.yaml
 │   ├── redis.yaml
