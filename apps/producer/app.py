@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 import redis
@@ -229,8 +229,8 @@ HTML = """
           <div class="hero-stat-value">Redis backlog</div>
         </div>
         <div class="hero-stat">
-          <div class="hero-stat-label">Game Script</div>
-          <div class="hero-stat-value">Luka + Lakers burst</div>
+          <div class="hero-stat-label">Worker Pods</div>
+          <div class="hero-stat-value" id="workerCount">-</div>
         </div>
       </div>
     </div>
@@ -274,6 +274,9 @@ HTML = """
       const data = await response.json();
       document.getElementById('queueLength').textContent = data.queue_length;
       document.getElementById('queuedJobs').textContent = data.queued_now;
+      if (data.worker_pods !== undefined) {
+        document.getElementById('workerCount').textContent = data.worker_pods;
+      }
       document.getElementById('statusBox').textContent = JSON.stringify(data, null, 2);
     }
 
@@ -304,7 +307,7 @@ HTML = """
 
 
 def build_job(processing_time: int) -> dict:
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(timezone.utc).isoformat()
     return {
         "job_id": f"job-{int(time.time() * 1000)}",
         "submitted_at": now,
@@ -324,7 +327,14 @@ def index():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "healthy", "service": "producer"})
+    try:
+        redis_client.ping()
+        redis_ok = True
+    except Exception:
+        redis_ok = False
+    status = "healthy" if redis_ok else "degraded"
+    code = 200 if redis_ok else 503
+    return jsonify({"status": status, "service": "producer", "redis": redis_ok}), code
 
 
 @app.route("/enqueue", methods=["POST"])
@@ -347,19 +357,48 @@ def enqueue():
     })
 
 
+def get_worker_pod_count() -> int | None:
+    """Query the Kubernetes API for running worker pods (works inside the cluster)."""
+    try:
+        import urllib.request
+        import ssl
+
+        token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        ns_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+
+        with open(token_path) as f:
+            token = f.read().strip()
+        with open(ns_path) as f:
+            namespace = f.read().strip()
+
+        ctx = ssl.create_default_context(cafile=ca_path)
+        url = f"https://kubernetes.default.svc/apis/apps/v1/namespaces/{namespace}/deployments/worker"
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, context=ctx, timeout=3) as resp:
+            data = json.loads(resp.read())
+            return data.get("status", {}).get("readyReplicas", 0)
+    except Exception:
+        return None
+
+
 @app.route("/status")
 def status():
     queue_length = redis_client.llen(QUEUE_NAME)
     recent_jobs = redis_client.lrange(QUEUE_NAME, 0, 4)
+    worker_pods = get_worker_pod_count()
 
-    return jsonify({
+    result = {
         "service": "producer",
         "queue_name": QUEUE_NAME,
         "queue_length": queue_length,
         "recent_jobs": [json.loads(item) for item in recent_jobs],
         "queued_now": queue_length,
         "default_burst": DEFAULT_BURST,
-    })
+    }
+    if worker_pods is not None:
+        result["worker_pods"] = worker_pods
+    return jsonify(result)
 
 
 if __name__ == "__main__":

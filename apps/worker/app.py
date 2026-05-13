@@ -2,7 +2,7 @@ import json
 import os
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 import pika
@@ -49,7 +49,7 @@ redis_client: redis.Redis | None = None
 
 
 def log(message: str) -> None:
-    print(f"[{datetime.utcnow().isoformat()}Z] [{WORKER_NAME}] {message}", flush=True)
+    print(f"[{datetime.now(timezone.utc).isoformat()}] [{WORKER_NAME}] {message}", flush=True)
 
 
 def process_job(job: dict) -> None:

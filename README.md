@@ -5,7 +5,7 @@ A hands-on project for learning **KEDA (Kubernetes Event-Driven Autoscaling)** o
 The demo uses a small basketball media ingestion service, a Redis-backed queue, a RabbitMQ recap pipeline, and worker deployments that KEDA scales from **zero to many replicas** depending on backlog. Think of it like an NBA content platform reacting to game-night spikes: highlight clipping requests, box score updates, recap batches, and social-ready stat cards.
 
 ![KEDA](https://img.shields.io/badge/KEDA-2.16-7B61FF?logo=kubernetes&logoColor=white)
-![Kubernetes](https://img.shields.io/badge/Kubernetes-1.35.1-326CE5?logo=kubernetes&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-1.30+-326CE5?logo=kubernetes&logoColor=white)
 ![Minikube](https://img.shields.io/badge/Minikube-local-F7B93E?logo=kubernetes&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 
@@ -233,6 +233,7 @@ keda-in-action/
 │   ├── rabbit-publisher-job.yaml
 │   ├── producer.yaml
 │   ├── producer-service.yaml
+│   ├── producer-rbac.yaml
 │   ├── worker-deployment.yaml
 │   └── rabbit-worker-deployment.yaml
 ├── keda/
@@ -270,14 +271,14 @@ This deletes the namespace, uninstalls KEDA from the cluster, and removes the Mi
 
 Versioning note:
 
- - Python package versions in the demo apps are pinned for reproducibility.
- - The project currently targets Kubernetes `v1.35.1` in Minikube.
- - The KEDA Helm chart and RabbitMQ container image are intentionally left easy to update, so revalidate the demo flow when upgrading them.
+- Python package versions in the demo apps are pinned for reproducibility.
+- The project targets Kubernetes 1.30+ in Minikube (configurable in `02-start-cluster.sh`).
+- The KEDA Helm chart and RabbitMQ container image are intentionally left easy to update — revalidate the demo flow when upgrading them.
 
- - [KEDA Documentation](https://keda.sh/docs/latest/)
- - [KEDA Scalers](https://keda.sh/docs/latest/scalers/)
- - [Redis Lists](https://redis.io/docs/latest/develop/data-types/lists/)
- - [RabbitMQ Scaler](https://keda.sh/docs/latest/scalers/rabbitmq-queue/)
+- [KEDA Documentation](https://keda.sh/docs/latest/)
+- [KEDA Scalers](https://keda.sh/docs/latest/scalers/)
+- [Redis Lists](https://redis.io/docs/latest/develop/data-types/lists/)
+- [RabbitMQ Scaler](https://keda.sh/docs/latest/scalers/rabbitmq-queue/)
 - [Minikube Documentation](https://minikube.sigs.k8s.io/docs/)
 
 ## 📝 License

@@ -15,6 +15,7 @@ spec:
       labels:
         app: producer
     spec:
+      serviceAccountName: producer
       containers:
         - name: producer
           image: keda-demo/producer:latest

@@ -36,6 +36,9 @@ kubectl apply -f "$PROJECT_DIR/k8s/redis.yaml"
 info "Deploying RabbitMQ..."
 kubectl apply -f "$PROJECT_DIR/k8s/rabbitmq.yaml"
 
+info "Deploying producer RBAC..."
+kubectl apply -f "$PROJECT_DIR/k8s/producer-rbac.yaml"
+
 info "Deploying producer..."
 kubectl apply -f "$PROJECT_DIR/k8s/producer.yaml"
 kubectl apply -f "$PROJECT_DIR/k8s/producer-service.yaml"

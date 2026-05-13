@@ -90,9 +90,16 @@ info "Redis trigger still handles real backlog outside the warm baseline."
 wait_for_user
 
 header "Scenario 5: Scale to Zero"
-info "Stop submitting jobs and watch workers scale back down after cooldown."
-info "Useful command: kubectl get deploy worker -n keda-demo -w"
-show_status
+info "Draining the Redis queue so workers have nothing left to process..."
+kubectl exec deployment/redis -n keda-demo -- redis-cli DEL highlight-jobs 2>/dev/null || true
+echo ""
+info "Queue drained. Now watching workers scale down (cooldown period applies)..."
+info "Current worker replicas:"
+kubectl get deployment worker -n keda-demo -o jsonpath='{.spec.replicas}' 2>/dev/null; echo " desired"
+kubectl get deployment worker -n keda-demo -o jsonpath='{.status.readyReplicas}' 2>/dev/null; echo " ready"
+echo ""
+info "Watch in another terminal: kubectl get pods -n keda-demo -l app=worker -w"
+info "Workers should scale to 0 after the cooldown period (~30s)."
 wait_for_user
 
 header "Scenario 6: RabbitMQ Queue Scaling + TriggerAuthentication"
@@ -110,6 +117,8 @@ echo "  kubectl get jobs -n keda-demo"
 echo "  kubectl logs -n keda-demo job/rabbit-publisher --tail=20"
 echo "  kubectl logs -n keda-demo deployment/rabbit-worker --tail=20"
 echo "  kubectl port-forward svc/rabbitmq 15672:15672 -n keda-demo"
+
+wait_for_user
 
 echo ""
 echo "============================================"

@@ -26,6 +26,12 @@ spec:
               value: "6379"
             - name: QUEUE_NAME
               value: highlight-jobs
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import redis; r=redis.Redis('redis',6379); r.ping()"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 50m
