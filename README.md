@@ -9,7 +9,7 @@ The demo uses a small basketball media ingestion service, a Redis-backed queue, 
 ![Minikube](https://img.shields.io/badge/Minikube-local-F7B93E?logo=kubernetes&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 
-> 📝 **Included in this repo:** a Medium-style story draft at `docs/medium-story.md`
+> 📝 **Published article:** [KEDA in Action: Building Event-Driven Autoscaling Demos with Kubernetes, Redis, RabbitMQ, and an NBA Theme](https://medium.com/@sergeiolshanetski/keda-in-action-building-event-driven-autoscaling-demos-with-kubernetes-redis-rabbitmq-and-an-06f7dd7bd70c)
 
 ## 🏗️ Architecture
 
