@@ -13,9 +13,9 @@ spec:
           imagePullPolicy: Never
           args: ["30"]
           env:
-            - name: RABBITMQ_HOST
+            - name: RABBITMQ_AMQP_HOST
               value: rabbitmq
-            - name: RABBITMQ_PORT
+            - name: RABBITMQ_AMQP_PORT
               value: "5672"
             - name: RABBITMQ_USER
               value: guest

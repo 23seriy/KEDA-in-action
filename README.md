@@ -13,6 +13,7 @@ The demo uses a small basketball media ingestion service, a Redis-backed queue, 
 
 ## 🏗️ Architecture
 
+```text
                  ┌──────────────────────────────────────────┐
                  │              Minikube Cluster            │
                  │                                          │
@@ -33,6 +34,7 @@ The demo uses a small basketball media ingestion service, a Redis-backed queue, 
                  │        RabbitMQ Worker Deployment       │
                  │        scales 0 → N based on backlog    │
                  └──────────────────────────────────────────┘
+```
 
 ## 📋 What You'll Learn
 
@@ -173,11 +175,29 @@ kubectl get pods -n keda-demo -l app=worker -w
 ### 6. RabbitMQ Queue Scaling + TriggerAuthentication
 
 ```bash
+kubectl delete job rabbit-publisher -n keda-demo --ignore-not-found
 kubectl apply -f keda/scaledobject-rabbitmq.yaml
 kubectl apply -f k8s/rabbit-publisher-job.yaml
 ```
 
 This independent path uses a dedicated `rabbit-worker` deployment, a RabbitMQ queue named `recap-jobs`, and a `TriggerAuthentication` backed by a Kubernetes Secret. It demonstrates how KEDA commonly integrates with authenticated external systems in production.
+
+Helpful commands while the RabbitMQ demo is running:
+
+```bash
+kubectl get pods -n keda-demo -l app=rabbit-worker -w
+kubectl get hpa -n keda-demo -w
+kubectl logs -n keda-demo job/rabbit-publisher --tail=20
+kubectl logs -n keda-demo deployment/rabbit-worker --tail=20
+```
+
+If you want to inspect RabbitMQ directly, open the management UI:
+
+```bash
+kubectl port-forward svc/rabbitmq 15672:15672 -n keda-demo
+```
+
+Then browse to `http://localhost:15672` and sign in with `guest` / `guest`.
 
 ## 🔍 How the Demo Works
 
@@ -248,10 +268,16 @@ This deletes the namespace, uninstalls KEDA from the cluster, and removes the Mi
 
 ## 📚 Resources
 
-- [KEDA Documentation](https://keda.sh/docs/latest/)
-- [KEDA Scalers](https://keda.sh/docs/latest/scalers/)
-- [Redis Lists](https://redis.io/docs/latest/develop/data-types/lists/)
-- [RabbitMQ Scaler](https://keda.sh/docs/latest/scalers/rabbitmq-queue/)
+Versioning note:
+
+ - Python package versions in the demo apps are pinned for reproducibility.
+ - The project currently targets Kubernetes `v1.35.1` in Minikube.
+ - The KEDA Helm chart and RabbitMQ container image are intentionally left easy to update, so revalidate the demo flow when upgrading them.
+
+ - [KEDA Documentation](https://keda.sh/docs/latest/)
+ - [KEDA Scalers](https://keda.sh/docs/latest/scalers/)
+ - [Redis Lists](https://redis.io/docs/latest/develop/data-types/lists/)
+ - [RabbitMQ Scaler](https://keda.sh/docs/latest/scalers/rabbitmq-queue/)
 - [Minikube Documentation](https://minikube.sigs.k8s.io/docs/)
 
 ## 📝 License

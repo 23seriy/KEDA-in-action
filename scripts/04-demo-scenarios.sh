@@ -32,8 +32,15 @@ show_status() {
 }
 
 publish_rabbit_jobs() {
-    kubectl delete job rabbit-publisher -n keda-demo 2>/dev/null || true
+    kubectl delete job rabbit-publisher -n keda-demo --ignore-not-found --wait=true >/dev/null 2>&1 || true
     kubectl apply -f "$PROJECT_DIR/k8s/rabbit-publisher-job.yaml"
+}
+
+cleanup_rabbit_demo() {
+    kubectl delete job rabbit-publisher -n keda-demo --ignore-not-found --wait=true >/dev/null 2>&1 || true
+    kubectl delete scaledobject rabbit-worker-queue -n keda-demo --ignore-not-found >/dev/null 2>&1 || true
+    kubectl delete triggerauthentication rabbitmq-trigger-auth -n keda-demo --ignore-not-found >/dev/null 2>&1 || true
+    kubectl delete secret rabbitmq-secret -n keda-demo --ignore-not-found >/dev/null 2>&1 || true
 }
 
 echo "============================================"
@@ -91,6 +98,7 @@ wait_for_user
 header "Scenario 6: RabbitMQ Queue Scaling + TriggerAuthentication"
 info "This scenario uses a separate rabbit-worker deployment so it does not conflict with the Redis-based worker."
 info "Watch RabbitMQ consumers in another terminal: kubectl get pods -n keda-demo -l app=rabbit-worker -w"
+cleanup_rabbit_demo
 kubectl apply -f "$PROJECT_DIR/keda/scaledobject-rabbitmq.yaml"
 info "Publishing 30 recap jobs to RabbitMQ..."
 publish_rabbit_jobs
@@ -98,7 +106,10 @@ echo ""
 info "Useful commands:"
 echo "  kubectl get scaledobject rabbit-worker-queue -n keda-demo"
 echo "  kubectl get hpa -n keda-demo -w"
+echo "  kubectl get jobs -n keda-demo"
+echo "  kubectl logs -n keda-demo job/rabbit-publisher --tail=20"
 echo "  kubectl logs -n keda-demo deployment/rabbit-worker --tail=20"
+echo "  kubectl port-forward svc/rabbitmq 15672:15672 -n keda-demo"
 
 echo ""
 echo "============================================"

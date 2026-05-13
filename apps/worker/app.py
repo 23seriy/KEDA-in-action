@@ -19,8 +19,8 @@ PREFETCH_COUNT = int(os.environ.get("PREFETCH_COUNT", "1"))
 
 
 def resolve_redis_endpoint() -> tuple[str, int]:
-    host_value = os.environ.get("REDIS_HOST", "redis")
-    port_value = os.environ.get("REDIS_PORT", "6379")
+    host_value = os.environ.get("REDIS_QUEUE_HOST") or os.environ.get("REDIS_HOST", "redis")
+    port_value = os.environ.get("REDIS_QUEUE_PORT") or os.environ.get("REDIS_PORT", "6379")
 
     if isinstance(port_value, str) and "://" in port_value:
         parsed = urlparse(port_value)
@@ -31,8 +31,8 @@ def resolve_redis_endpoint() -> tuple[str, int]:
 
 
 def resolve_rabbitmq_endpoint() -> tuple[str, int]:
-    host_value = os.environ.get("RABBITMQ_HOST", "rabbitmq")
-    port_value = os.environ.get("RABBITMQ_PORT", "5672")
+    host_value = os.environ.get("RABBITMQ_AMQP_HOST") or os.environ.get("RABBITMQ_HOST", "rabbitmq")
+    port_value = os.environ.get("RABBITMQ_AMQP_PORT") or os.environ.get("RABBITMQ_PORT", "5672")
 
     if isinstance(port_value, str) and "://" in port_value:
         parsed = urlparse(port_value)

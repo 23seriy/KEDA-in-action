@@ -2,14 +2,25 @@ import json
 import os
 import time
 from datetime import datetime
+from urllib.parse import urlparse
 
 import redis
 from flask import Flask, jsonify, request, render_template_string
 
 app = Flask(__name__)
 
-REDIS_HOST = os.environ.get("REDIS_HOST", "redis")
-REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
+def resolve_redis_endpoint() -> tuple[str, int]:
+    host_value = os.environ.get("REDIS_QUEUE_HOST") or os.environ.get("REDIS_HOST", "redis")
+    port_value = os.environ.get("REDIS_QUEUE_PORT") or os.environ.get("REDIS_PORT", "6379")
+
+    if isinstance(port_value, str) and "://" in port_value:
+        parsed = urlparse(port_value)
+        if parsed.hostname and parsed.port:
+            return parsed.hostname, parsed.port
+
+    return host_value, int(port_value)
+
+REDIS_HOST, REDIS_PORT = resolve_redis_endpoint()
 QUEUE_NAME = os.environ.get("QUEUE_NAME", "highlight-jobs")
 DEFAULT_BURST = int(os.environ.get("DEFAULT_BURST", "10"))
 

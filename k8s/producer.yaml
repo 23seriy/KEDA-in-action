@@ -22,9 +22,9 @@ spec:
           ports:
             - containerPort: 8080
           env:
-            - name: REDIS_HOST
+            - name: REDIS_QUEUE_HOST
               value: redis
-            - name: REDIS_PORT
+            - name: REDIS_QUEUE_PORT
               value: "6379"
             - name: QUEUE_NAME
               value: highlight-jobs
