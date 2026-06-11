@@ -281,6 +281,18 @@ Versioning note:
 - [RabbitMQ Scaler](https://keda.sh/docs/latest/scalers/rabbitmq-queue/)
 - [Minikube Documentation](https://minikube.sigs.k8s.io/docs/)
 
-## 📝 License
+## � Documentation
+
+| Document | Description |
+|---|---|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute — workflow, standards, PR process |
+| [TESTING.md](TESTING.md) | Testing guide — automated checks and manual scenarios |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common issues and diagnostic commands |
+| [SECURITY.md](SECURITY.md) | Security policy and responsible disclosure |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [.github/GOVERNANCE.md](.github/GOVERNANCE.md) | Project governance and decision making |
+
+## �📝 License
 
 MIT — Use freely for learning, demos, and presentations.
