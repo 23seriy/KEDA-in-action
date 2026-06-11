@@ -26,12 +26,16 @@ keda-in-action/
 ├── keda/                 # ScaledObject YAML variants
 ├── scripts/              # Setup, deploy, demo, teardown scripts
 ├── .github/              # CI workflows, issue/PR templates, governance
+├── .dockerignore         # Docker build context exclusions
+├── .shellcheckrc         # Shellcheck lint config
+├── .markdownlint.json    # Markdown lint config
 ├── CONTRIBUTING.md       # Contribution guidelines
 ├── SECURITY.md           # Security policy
 ├── TESTING.md            # Testing guide
 ├── TROUBLESHOOTING.md    # Troubleshooting guide
 ├── CODE_OF_CONDUCT.md    # Contributor Covenant
 ├── CHANGELOG.md          # Release history
+├── LICENSE               # MIT license
 └── README.md             # Main documentation
 ```
 
@@ -57,6 +61,8 @@ keda-in-action/
 
 ## Conventions
 
+- All Kubernetes resources use the `keda-demo` namespace; KEDA operator runs in `keda` namespace
+- Docker images are built locally in Minikube's Docker daemon (no registry push)
 - Shell scripts: `#!/usr/bin/env bash` + `set -euo pipefail`
 - Colored output helpers: `info()`, `ok()`, `warn()`, `fail()`
 - Python apps: Flask, pinned deps in requirements.txt, `os.getenv()` config
