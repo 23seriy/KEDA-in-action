@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KEDA in Action — Game Night Control Room</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@500&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --court-wood: #C4813D;
+      --court-dark: #9C6830;
+      --court-line: rgba(255,255,255,0.85);
+      --orange: #F97316;
+      --gold: #FACC15;
+      --blue: #3B82F6;
+      --cyan: #22D3EE;
+      --red: #EF4444;
+      --green: #22C55E;
+      --bg: #0C0F1A;
+      --card: rgba(15, 23, 42, 0.85);
+      --border: rgba(148, 163, 184, 0.12);
+      --text: #F1F5F9;
+      --muted: #94A3B8;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Ambient glow ── */
+    body::before {
+      content: "";
+      position: fixed;
+      top: -40%; left: -20%;
+      width: 140%; height: 80%;
+      background: radial-gradient(ellipse, rgba(249,115,22,0.08) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app { position: relative; z-index: 1; padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+    /* ── Header / Scoreboard ── */
+    .scoreboard {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(88,28,135,0.6));
+      border: 1px solid rgba(251,146,60,0.25);
+      border-radius: 20px;
+      padding: 20px 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .scoreboard-left { display: flex; align-items: center; gap: 16px; }
+    .logo {
+      width: 56px; height: 56px;
+      background: linear-gradient(135deg, var(--orange), var(--gold));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px;
+      box-shadow: 0 0 24px rgba(249,115,22,0.4);
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 24px rgba(249,115,22,0.4); }
+      50% { box-shadow: 0 0 40px rgba(249,115,22,0.65); }
+    }
+    .brand h1 {
+      font-size: 1.6rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, #fb923c, #facc15 50%, #38bdf8);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+    }
+    .brand .tagline { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
+    .live-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(239,68,68,0.15);
+      border: 1px solid rgba(239,68,68,0.4);
+      color: #fca5a5;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .live-dot {
+      width: 8px; height: 8px;
+      background: var(--red);
+      border-radius: 50%;
+      animation: blink 1.2s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ── Stat row ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 900px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+    .stat-card:hover { border-color: rgba(251,146,60,0.35); }
+    .stat-card .glow {
+      position: absolute;
+      top: -20px; right: -20px;
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      opacity: 0.15;
+    }
+    .stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
+    .stat-value {
+      font-size: 2.4rem;
+      font-weight: 900;
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.3s;
+    }
+    .stat-sub { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Main grid ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 1000px) { .main-grid { grid-template-columns: 1fr; } }
+
+    /* ── Court visual ── */
+    .court-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px;
+      display: flex; flex-direction: column;
+    }
+    .court-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px;
+    }
+    .court-header h2 { font-size: 1rem; font-weight: 800; }
+    .court-svg-wrap {
+      flex: 1;
+      background: linear-gradient(135deg, var(--court-wood), var(--court-dark));
+      border-radius: 12px;
+      padding: 12px;
+      position: relative;
+      min-height: 280px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 3px solid rgba(255,255,255,0.12);
+    }
+    /* Wood grain */
+    .court-svg-wrap::before {
+      content: "";
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(
+        90deg,
+        transparent 0px,
+        rgba(0,0,0,0.03) 2px,
+        transparent 4px,
+        transparent 24px
+      );
+      pointer-events: none;
+    }
+
+    .court-svg { width: 100%; height: 100%; }
+
+    /* ── Queue bar visualization inside court ── */
+    .queue-bar-area {
+      position: absolute;
+      bottom: 16px; left: 16px; right: 16px;
+      height: 48px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 8px;
+    }
+    .queue-bar-label {
+      color: rgba(255,255,255,0.8);
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+    .queue-bar-track {
+      flex: 1;
+      height: 24px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+    .queue-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--green), var(--gold), var(--orange), var(--red));
+      border-radius: 6px;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+    .queue-bar-fill.hot::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 60%, rgba(255,255,255,0.25));
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+    .queue-bar-count {
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      min-width: 40px;
+      text-align: right;
+    }
+
+    /* ── Worker pods as players on bench ── */
+    .bench-area {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .bench-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .pod-player {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+    }
+    .pod-player.active {
+      background: linear-gradient(135deg, var(--green), #16a34a);
+      box-shadow: 0 0 16px rgba(34,197,94,0.5);
+      animation: pod-enter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .pod-player.idle {
+      background: rgba(71,85,105,0.4);
+      border: 2px dashed rgba(148,163,184,0.3);
+    }
+    @keyframes pod-enter {
+      0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+
+    /* ── Right panel ── */
+    .right-panel { display: flex; flex-direction: column; gap: 14px; }
+
+    .action-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 20px;
+    }
+    .action-card h3 { font-size: 0.95rem; font-weight: 800; margin-bottom: 14px; }
+
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn {
+      border: none;
+      border-radius: 12px;
+      padding: 14px 12px;
+      cursor: pointer;
+      color: white;
+      font-weight: 800;
+      font-size: 0.82rem;
+      font-family: inherit;
+      transition: transform 0.15s, box-shadow 0.15s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0,0,0,0.35); }
+    .btn:active { transform: translateY(0); }
+    .btn .emoji { font-size: 1.4rem; }
+    .btn-orange { background: linear-gradient(135deg, #f97316, #ea580c); }
+    .btn-gold { background: linear-gradient(135deg, #f59e0b, #d97706); color: #111; }
+    .btn-blue { background: linear-gradient(135deg, #2563eb, #0284c7); }
+    .btn-red { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+    .btn-wide { grid-column: span 2; }
+    .btn-secondary {
+      background: linear-gradient(135deg, #334155, #1e293b);
+      border: 1px solid var(--border);
+    }
+
+    /* Custom burst input */
+    .custom-burst {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .custom-burst input {
+      flex: 1;
+      background: rgba(15,23,42,0.9);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .custom-burst input:focus { border-color: var(--orange); }
+    .custom-burst button { white-space: nowrap; padding: 10px 16px; }
+
+    /* ── Activity feed ── */
+    .feed-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 20px;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .feed-card h3 { font-size: 0.95rem; font-weight: 800; margin-bottom: 12px; }
+    .feed-list {
+      flex: 1;
+      overflow-y: auto;
+      max-height: 300px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .feed-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: rgba(15,23,42,0.6);
+      font-size: 0.82rem;
+      animation: feed-in 0.3s ease;
+    }
+    @keyframes feed-in {
+      0% { opacity: 0; transform: translateX(-12px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+    .feed-icon {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .feed-icon.enqueue { background: rgba(249,115,22,0.2); }
+    .feed-icon.scale-up { background: rgba(34,197,94,0.2); }
+    .feed-icon.scale-down { background: rgba(59,130,246,0.2); }
+    .feed-icon.drain { background: rgba(239,68,68,0.2); }
+    .feed-text { flex: 1; color: var(--muted); }
+    .feed-text strong { color: var(--text); }
+    .feed-time { font-size: 0.72rem; color: rgba(148,163,184,0.6); font-family: 'JetBrains Mono', monospace; }
+
+    /* ── Bottom info bar ── */
+    .info-bar {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .info-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15,23,42,0.7);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .info-chip code {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text);
+      font-size: 0.76rem;
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Scoreboard header -->
+    <div class="scoreboard">
+      <div class="scoreboard-left">
+        <div class="logo">🏀</div>
+        <div class="brand">
+          <h1>KEDA in Action</h1>
+          <div class="tagline">Game Night Control Room — NBA Edition</div>
+        </div>
+      </div>
+      <div class="live-badge"><div class="live-dot"></div> Live Autoscaling</div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="glow" style="background:var(--orange)"></div>
+        <div class="stat-label">Queue Depth</div>
+        <div class="stat-value" id="queueDepth" style="color:var(--orange)">—</div>
+        <div class="stat-sub">highlight-jobs pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="glow" style="background:var(--green)"></div>
+        <div class="stat-label">Worker Pods</div>
+        <div class="stat-value" id="workerPods" style="color:var(--green)">—</div>
+        <div class="stat-sub">on the court now</div>
+      </div>
+      <div class="stat-card">
+        <div class="glow" style="background:var(--blue)"></div>
+        <div class="stat-label">Jobs Sent</div>
+        <div class="stat-value" id="jobsSent" style="color:var(--blue)">0</div>
+        <div class="stat-sub">this session</div>
+      </div>
+      <div class="stat-card">
+        <div class="glow" style="background:var(--gold)"></div>
+        <div class="stat-label">Heat Index</div>
+        <div class="stat-value" id="heatIndex" style="color:var(--gold)">🧊</div>
+        <div class="stat-sub" id="heatLabel">Calm — no game action</div>
+      </div>
+    </div>
+
+    <!-- Main grid: court + controls -->
+    <div class="main-grid">
+      <div class="court-card">
+        <div class="court-header">
+          <h2>🏟️ Arena Floor — Queue & Workers</h2>
+          <div class="live-badge" style="font-size:0.7rem; padding:4px 10px;">
+            <div class="live-dot"></div> Auto-refresh 3s
+          </div>
+        </div>
+
+        <div class="court-svg-wrap">
+          <!-- Half-court SVG -->
+          <svg class="court-svg" viewBox="0 0 500 340" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Court boundary -->
+            <rect x="10" y="10" width="480" height="320" rx="4" stroke="rgba(255,255,255,0.6)" stroke-width="2.5" fill="none"/>
+            <!-- Center circle -->
+            <circle cx="250" cy="170" r="50" stroke="rgba(255,255,255,0.5)" stroke-width="2" fill="none"/>
+            <circle cx="250" cy="170" r="5" fill="rgba(255,255,255,0.5)"/>
+            <!-- Center line -->
+            <line x1="250" y1="10" x2="250" y2="330" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>
+            <!-- Left key -->
+            <rect x="10" y="100" width="100" height="140" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" fill="none"/>
+            <path d="M 110 100 A 70 70 0 0 1 110 240" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" fill="none"/>
+            <!-- Right key -->
+            <rect x="390" y="100" width="100" height="140" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" fill="none"/>
+            <path d="M 390 100 A 70 70 0 0 0 390 240" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" fill="none"/>
+            <!-- 3-point arcs -->
+            <path d="M 10 60 Q 150 170 10 280" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" fill="none"/>
+            <path d="M 490 60 Q 350 170 490 280" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" fill="none"/>
+            <!-- Basket circles -->
+            <circle cx="25" cy="170" r="8" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" fill="none"/>
+            <circle cx="475" cy="170" r="8" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" fill="none"/>
+
+            <!-- Worker pod positions will be placed by JS -->
+            <g id="courtWorkers"></g>
+
+            <!-- KEDA label -->
+            <text x="250" y="175" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="28" font-weight="900" font-family="Inter, sans-serif">KEDA</text>
+          </svg>
+
+          <!-- Queue bar overlay -->
+          <div class="queue-bar-area">
+            <div class="queue-bar-label">Queue</div>
+            <div class="queue-bar-track">
+              <div class="queue-bar-fill" id="queueBarFill" style="width:0%"></div>
+            </div>
+            <div class="queue-bar-count" id="queueBarCount">0</div>
+          </div>
+        </div>
+
+        <div class="bench-area">
+          <div class="bench-label">Bench:</div>
+          <div id="benchPods"></div>
+        </div>
+      </div>
+
+      <!-- Right panel -->
+      <div class="right-panel">
+        <div class="action-card">
+          <h3>📋 Coach's Playbook</h3>
+          <div class="btn-grid">
+            <button class="btn btn-orange" onclick="sendJobs(1)">
+              <span class="emoji">🏀</span>
+              Fast Break
+              <span style="font-weight:500;font-size:0.72rem;opacity:0.8">1 job</span>
+            </button>
+            <button class="btn btn-gold" onclick="sendJobs(10)">
+              <span class="emoji">🔥</span>
+              Scoring Run
+              <span style="font-weight:500;font-size:0.72rem;opacity:0.8">10 jobs</span>
+            </button>
+            <button class="btn btn-blue" onclick="sendJobs(50)">
+              <span class="emoji">🚨</span>
+              Playoff Surge
+              <span style="font-weight:500;font-size:0.72rem;opacity:0.8">50 jobs</span>
+            </button>
+            <button class="btn btn-red" onclick="sendJobs(100)">
+              <span class="emoji">💥</span>
+              Finals Rush
+              <span style="font-weight:500;font-size:0.72rem;opacity:0.8">100 jobs</span>
+            </button>
+            <button class="btn btn-secondary btn-wide" onclick="drainQueue()">
+              <span class="emoji">🧹</span>
+              Halftime — Drain Queue
+            </button>
+          </div>
+          <div class="custom-burst">
+            <input type="number" id="customCount" placeholder="Custom burst count..." min="1" max="500" />
+            <button class="btn btn-orange" onclick="sendCustom()" style="font-size:0.8rem;">Send</button>
+          </div>
+        </div>
+
+        <div class="feed-card">
+          <h3>📡 Game Log</h3>
+          <div class="feed-list" id="feedList">
+            <div class="feed-item">
+              <div class="feed-icon enqueue">🎬</div>
+              <div class="feed-text">Control room <strong>online</strong>. Waiting for tip-off...</div>
+              <div class="feed-time">now</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info bar -->
+    <div class="info-bar">
+      <div class="info-chip">Queue: <code>highlight-jobs</code></div>
+      <div class="info-chip">Namespace: <code>keda-demo</code></div>
+      <div class="info-chip">API: <code>/status</code> <code>/enqueue</code> <code>/drain</code></div>
+      <div class="info-chip">Refresh: <code>3s</code></div>
+    </div>
+  </div>
+
+  <script>
+    let totalJobsSent = 0;
+    let previousWorkers = null;
+    let previousQueueDepth = null;
+
+    const workerPositions = [
+      {x:80, y:170}, {x:160, y:90}, {x:160, y:250},
+      {x:340, y:90}, {x:340, y:250}, {x:420, y:170},
+      {x:250, y:80}, {x:250, y:260}, {x:120, y:170},
+      {x:380, y:170}
+    ];
+
+    function getHeat(depth, workers) {
+      if (depth === 0 && workers === 0) return { emoji: '🧊', label: 'Calm — no game action', level: 0 };
+      if (depth <= 5) return { emoji: '🏀', label: 'Warm-up — light traffic', level: 1 };
+      if (depth <= 20) return { emoji: '🔥', label: 'Game on — queue building', level: 2 };
+      if (depth <= 50) return { emoji: '🚨', label: 'Playoff intensity!', level: 3 };
+      return { emoji: '💥', label: 'FINALS FRENZY — max load!', level: 4 };
+    }
+
+    function addFeedItem(icon, iconClass, html) {
+      const list = document.getElementById('feedList');
+      const now = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const item = document.createElement('div');
+      item.className = 'feed-item';
+      item.innerHTML = `
+        <div class="feed-icon ${iconClass}">${icon}</div>
+        <div class="feed-text">${html}</div>
+        <div class="feed-time">${now}</div>
+      `;
+      list.prepend(item);
+      while (list.children.length > 30) list.lastChild.remove();
+    }
+
+    function renderCourtWorkers(count) {
+      const g = document.getElementById('courtWorkers');
+      g.innerHTML = '';
+      for (let i = 0; i < Math.min(count, workerPositions.length); i++) {
+        const pos = workerPositions[i];
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', pos.x);
+        circle.setAttribute('cy', pos.y);
+        circle.setAttribute('r', '14');
+        circle.setAttribute('fill', 'rgba(34,197,94,0.85)');
+        circle.setAttribute('stroke', '#fff');
+        circle.setAttribute('stroke-width', '2');
+        circle.style.filter = 'drop-shadow(0 0 8px rgba(34,197,94,0.6))';
+
+        const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+        anim.setAttribute('attributeName', 'r');
+        anim.setAttribute('values', '14;16;14');
+        anim.setAttribute('dur', `${1.5 + Math.random()}s`);
+        anim.setAttribute('repeatCount', 'indefinite');
+        circle.appendChild(anim);
+        g.appendChild(circle);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', pos.x);
+        text.setAttribute('y', pos.y + 4);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', '#fff');
+        text.setAttribute('font-size', '10');
+        text.setAttribute('font-weight', '800');
+        text.setAttribute('font-family', 'Inter, sans-serif');
+        text.textContent = `W${i + 1}`;
+        g.appendChild(text);
+      }
+      if (count > workerPositions.length) {
+        const extra = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        extra.setAttribute('x', 250);
+        extra.setAttribute('y', 30);
+        extra.setAttribute('text-anchor', 'middle');
+        extra.setAttribute('fill', 'rgba(34,197,94,0.8)');
+        extra.setAttribute('font-size', '12');
+        extra.setAttribute('font-weight', '800');
+        extra.setAttribute('font-family', 'Inter, sans-serif');
+        extra.textContent = `+${count - workerPositions.length} more`;
+        g.appendChild(extra);
+      }
+    }
+
+    function renderBenchPods(count) {
+      const container = document.getElementById('benchPods');
+      container.innerHTML = '';
+      const maxShow = 10;
+      for (let i = 0; i < maxShow; i++) {
+        const pod = document.createElement('div');
+        pod.className = `pod-player ${i < count ? 'active' : 'idle'}`;
+        pod.textContent = i < count ? '🏃' : '💺';
+        pod.title = i < count ? `Worker ${i + 1} — active` : 'Empty seat';
+        container.appendChild(pod);
+      }
+      if (count > maxShow) {
+        const extra = document.createElement('span');
+        extra.style.cssText = 'color:var(--green);font-weight:800;font-size:0.82rem;';
+        extra.textContent = `+${count - maxShow}`;
+        container.appendChild(extra);
+      }
+    }
+
+    async function refreshStatus() {
+      try {
+        const res = await fetch('/status');
+        const data = await res.json();
+        const depth = data.queue_length || 0;
+        const workers = data.worker_pods !== undefined ? data.worker_pods : 0;
+
+        document.getElementById('queueDepth').textContent = depth;
+        document.getElementById('workerPods').textContent = workers;
+
+        // Queue bar
+        const pct = Math.min(100, (depth / 100) * 100);
+        const fill = document.getElementById('queueBarFill');
+        fill.style.width = pct + '%';
+        fill.className = 'queue-bar-fill' + (depth > 20 ? ' hot' : '');
+        document.getElementById('queueBarCount').textContent = depth;
+
+        // Heat index
+        const heat = getHeat(depth, workers);
+        document.getElementById('heatIndex').textContent = heat.emoji;
+        document.getElementById('heatLabel').textContent = heat.label;
+
+        // Court workers
+        renderCourtWorkers(workers);
+        renderBenchPods(workers);
+
+        // Feed events
+        if (previousWorkers !== null && workers !== previousWorkers) {
+          if (workers > previousWorkers) {
+            addFeedItem('📈', 'scale-up', `Workers scaled <strong>${previousWorkers} → ${workers}</strong> — reinforcements checking in!`);
+          } else {
+            addFeedItem('📉', 'scale-down', `Workers scaled <strong>${previousWorkers} → ${workers}</strong> — heading to the bench`);
+          }
+        }
+        if (previousQueueDepth !== null && previousQueueDepth > 0 && depth === 0) {
+          addFeedItem('✅', 'drain', `Queue <strong>cleared</strong> — all highlights processed!`);
+        }
+
+        previousWorkers = workers;
+        previousQueueDepth = depth;
+      } catch (e) {
+        document.getElementById('queueDepth').textContent = '⚠️';
+      }
+    }
+
+    async function sendJobs(count) {
+      addFeedItem('🏀', 'enqueue', `Sending <strong>${count}</strong> highlight job${count > 1 ? 's' : ''}...`);
+      try {
+        const res = await fetch('/enqueue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count, processing_time: 5 })
+        });
+        const data = await res.json();
+        totalJobsSent += data.queued || count;
+        document.getElementById('jobsSent').textContent = totalJobsSent;
+        addFeedItem('✅', 'enqueue', `<strong>${data.queued}</strong> jobs queued — queue at <strong>${data.queue_length}</strong>`);
+        await refreshStatus();
+      } catch (e) {
+        addFeedItem('❌', 'drain', `Failed to send jobs — is port-forward running?`);
+      }
+    }
+
+    function sendCustom() {
+      const input = document.getElementById('customCount');
+      const count = parseInt(input.value);
+      if (count > 0) {
+        sendJobs(count);
+        input.value = '';
+      }
+    }
+
+    async function drainQueue() {
+      addFeedItem('🧹', 'drain', `Draining queue...`);
+      try {
+        const res = await fetch('/drain', { method: 'POST' });
+        const data = await res.json();
+        addFeedItem('🧹', 'drain', `Queue drained — <strong>${data.removed || 0}</strong> jobs cleared`);
+        await refreshStatus();
+      } catch (e) {
+        addFeedItem('❌', 'drain', `Drain failed — endpoint may not exist`);
+      }
+    }
+
+    // Enter key for custom input
+    document.getElementById('customCount').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendCustom();
+    });
+
+    refreshStatus();
+    setInterval(refreshStatus, 3000);
+  </script>
+</body>
+</html>

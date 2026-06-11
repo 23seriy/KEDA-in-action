@@ -74,7 +74,10 @@ def process_rabbit_message(body: bytes) -> None:
 def run_redis_worker() -> None:
     global redis_client
     if redis_client is None:
-        redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+        redis_client = redis.Redis(
+            host=REDIS_HOST, port=REDIS_PORT, decode_responses=True,
+            socket_timeout=30, socket_connect_timeout=5,
+        )
 
     log(f"Worker started. Listening to basketball queue '{QUEUE_NAME}' on {REDIS_HOST}:{REDIS_PORT}")
     while True:

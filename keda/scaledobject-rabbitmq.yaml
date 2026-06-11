@@ -5,7 +5,7 @@ metadata:
   namespace: keda-demo
 type: Opaque
 stringData:
-  host: amqp://guest:guest@rabbitmq.keda-demo.svc.cluster.local:5672/
+  host: http://guest:guest@rabbitmq.keda-demo.svc.cluster.local:15672/
 ---
 apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication
