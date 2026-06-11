@@ -91,7 +91,7 @@ wait_for_user
 
 header "Scenario 5: Scale to Zero"
 info "Draining the Redis queue so workers have nothing left to process..."
-kubectl exec deployment/redis -n keda-demo -- redis-cli DEL highlight-jobs 2>/dev/null || true
+kubectl exec deployment/redis -n keda-demo -- redis-cli DEL highlight-queue 2>/dev/null || true
 echo ""
 info "Queue drained. Now watching workers scale down (cooldown period applies)..."
 info "Current worker replicas:"
