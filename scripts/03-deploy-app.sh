@@ -16,7 +16,7 @@ echo "============================================"
 echo ""
 
 info "Configuring Docker to use Minikube's daemon..."
-eval $(minikube -p "$PROFILE" docker-env)
+eval "$(minikube -p "$PROFILE" docker-env)"
 
 info "Building producer image..."
 docker build -t keda-demo/producer:latest "$PROJECT_DIR/apps/producer"
