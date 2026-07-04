@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions: read-all
+
 jobs:
   shellcheck:
     name: Shell Script Linting
